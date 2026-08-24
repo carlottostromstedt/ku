@@ -149,6 +149,11 @@ type App struct {
 	// runtime from the command palette.
 	dev      bool
 	readOnly bool
+
+	// impersonate is the identity every cluster call acts as, from
+	// --as/--as-group/--as-uid. Set once at startup and never persisted; it
+	// changes who you are, not what edit mode allows.
+	impersonate k8s.Impersonation
 }
 
 func newSpinner(th Theme) spinner.Model {
@@ -2365,7 +2370,7 @@ func (a App) applySelection(res selResult) (tea.Model, tea.Cmd) {
 		}
 		a.lookupSeq++
 		a.setStatus("switching context…", false)
-		return a, switchContextCmd(res.id, a.client.Kubeconfig())
+		return a, switchContextCmd(res.id, a.client.Kubeconfig(), a.impersonate)
 	case selContainer:
 		return a.startLogs(a.logTarget.ns, a.logTarget.name, res.id, a.logPrevious[res.id])
 	case selExecContainer:
@@ -2665,6 +2670,11 @@ func (a App) headerView() string {
 	if a.dev {
 		chips = append(chips, chip("mode", "dev"))
 	}
+	// Warn-styled rather than a plain chip: every call in the session runs as
+	// someone else, which should never be easy to miss.
+	if a.impersonate.Active() {
+		chips = append(chips, th.HeaderKey.Render("as ")+th.Warn.Render(truncate(impersonationLabel(a.impersonate), 28)))
+	}
 	if n := len(a.portForwards); n > 0 {
 		chips = append(chips, chip("pf", itoa(n)))
 	}
@@ -2691,9 +2701,13 @@ func (a App) headerView() string {
 
 	avail := a.width - lipgloss.Width(right) - 2
 	left := logo
+	// Skip a chip that does not fit instead of stopping at it. The chips at the
+	// end (node scope, active filter) are the ones that keep a narrowed list from
+	// looking like the whole set, so a wide chip ahead of them must not take them
+	// down with it.
 	for _, c := range chips {
 		if lipgloss.Width(left)+2+lipgloss.Width(c) > avail {
-			break
+			continue
 		}
 		left += "  " + c
 	}
@@ -2723,18 +2737,24 @@ func (a App) modeChip() string {
 	return a.theme.StatusErr.Render("● EDIT")
 }
 
-// modeNote is a one-line summary of the active mode for the help screen. It is
-// empty in the default full read/write mode, which needs no callout.
+// modeNote is a one-line summary of the active mode and identity for the help
+// screen. It is empty in the default full read/write mode with no
+// impersonation, which needs no callout.
 func (a App) modeNote() string {
+	mode := ""
 	switch {
 	case a.dev && a.readOnly:
-		return "Developer + read-only mode: nav scoped to app resources; all writes disabled"
+		mode = "Developer + read-only mode: nav scoped to app resources; all writes disabled"
 	case a.dev:
-		return "Developer mode: nav scoped to app resources; node ops disabled"
+		mode = "Developer mode: nav scoped to app resources; node ops disabled"
 	case a.readOnly:
-		return "Read-only mode: writes are disabled. Fat-fingers, your cluster is safe."
+		mode = "Read-only mode: writes are disabled. Fat-fingers, your cluster is safe."
 	}
-	return ""
+	imp := ""
+	if a.impersonate.Active() {
+		imp = "Impersonating " + a.impersonate.String()
+	}
+	return strings.Join(nonEmpty([]string{imp, mode}), " · ")
 }
 
 type hint struct{ key, desc string }
