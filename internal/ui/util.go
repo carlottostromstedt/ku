@@ -136,7 +136,7 @@ func paneInnerSize(outer, frame int) int {
 
 // impersonationLabel renders an impersonated identity for the header chip: the
 // user name, plus a group count when groups are set. Kept short on purpose; the
-// full identity is in the help overlay's mode note.
+// flags in full are in the `C` command preview.
 func impersonationLabel(imp k8s.Impersonation) string {
 	s := imp.User
 	if s == "" {

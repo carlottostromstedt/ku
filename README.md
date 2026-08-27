@@ -104,8 +104,8 @@ ku --edit --as system:admin --as-group system:masters
 `--as-group` is repeatable. Groups and a uid need a user, so `--as-group` on its
 own is rejected before the session starts.
 
-The header shows an `as` chip while impersonation is active, and `?` names the
-identity in full. Impersonation is per-invocation: it is never written to
+The header shows an `as` chip while impersonation is active. Impersonation is
+per-invocation: it is never written to
 `state.json`, so the next launch is back to your own identity. It also does not
 relax the read-only default, so writes still need `--edit` or `Shift+E`.
 

@@ -105,10 +105,9 @@ func (h helpView) View(width, height int) string {
 		frameRows = 3     // border plus title line
 		inner = width - 4 // border plus Padding(0, 1)
 	}
-	// The note carries the impersonated identity, which can be long. Wrap it to
-	// the inner width instead of letting it set the box width: a box wider than
-	// the terminal loses its right border and the identity itself to the overlay
-	// clamp, which is the one place the full identity is meant to be readable.
+	// Wrap the note to the inner width instead of letting it set the box width:
+	// a box wider than the terminal loses its right border and the tail of the
+	// note to the overlay clamp.
 	var noteLines []string
 	if h.note != "" {
 		noteLines = wrapPlain(h.note, inner)

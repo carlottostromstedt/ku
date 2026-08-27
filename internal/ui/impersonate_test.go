@@ -59,22 +59,18 @@ func TestHeaderOmitsImpersonationChipWhenUnset(t *testing.T) {
 	}
 }
 
-func TestModeNoteCombinesImpersonationAndMode(t *testing.T) {
+// The help overlay is a keybinding reference, so the identity stays out of it.
+// The header chip and the `C` command preview are where it shows.
+func TestModeNoteOmitsImpersonation(t *testing.T) {
 	for _, tc := range []struct {
-		name     string
-		app      App
-		contains []string
-		empty    bool
+		name string
+		app  App
+		want string
 	}{
 		{
-			name:  "no mode and no impersonation",
-			app:   App{},
-			empty: true,
-		},
-		{
-			name:     "impersonation only",
-			app:      App{impersonate: k8s.Impersonation{User: "system:admin"}},
-			contains: []string{"Impersonating system:admin"},
+			name: "impersonation only",
+			app:  App{impersonate: k8s.Impersonation{User: "system:admin"}},
+			want: "",
 		},
 		{
 			name: "impersonation and read-only",
@@ -82,25 +78,16 @@ func TestModeNoteCombinesImpersonationAndMode(t *testing.T) {
 				readOnly:    true,
 				impersonate: k8s.Impersonation{User: "system:admin", Groups: []string{"system:masters"}},
 			},
-			contains: []string{"Impersonating system:admin (groups: system:masters)", "·", "Read-only mode"},
+			want: "Read-only mode: writes are disabled. Fat-fingers, your cluster is safe.",
 		},
 		{
-			name:     "read-only only",
-			app:      App{readOnly: true},
-			contains: []string{"Read-only mode"},
+			name: "no mode and no impersonation",
+			app:  App{},
+			want: "",
 		},
 	} {
-		got := tc.app.modeNote()
-		if tc.empty {
-			if got != "" {
-				t.Errorf("%s: modeNote() = %q, want empty", tc.name, got)
-			}
-			continue
-		}
-		for _, want := range tc.contains {
-			if !strings.Contains(got, want) {
-				t.Errorf("%s: modeNote() = %q, want it to contain %q", tc.name, got, want)
-			}
+		if got := tc.app.modeNote(); got != tc.want {
+			t.Errorf("%s: modeNote() = %q, want %q", tc.name, got, tc.want)
 		}
 	}
 }

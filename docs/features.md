@@ -180,9 +180,8 @@ the session starts, with a message naming the flag, rather than surfacing later
 as a kubeconfig load error.
 
 While impersonation is active the header carries an `as` chip, showing the user
-name and a group count, and `?` names the identity in full. The `C` command
-preview includes the flags, so the printed `kubectl` line reproduces what the
-session is doing.
+name and a group count. The `C` command preview includes the flags, so the
+printed `kubectl` line reproduces what the session is doing.
 
 The identity survives a context switch with `c`, since the rebuilt client keeps
 it. It is never persisted: `state.json` holds only context, namespace and theme,

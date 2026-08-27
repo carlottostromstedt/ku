@@ -2737,24 +2737,18 @@ func (a App) modeChip() string {
 	return a.theme.StatusErr.Render("● EDIT")
 }
 
-// modeNote is a one-line summary of the active mode and identity for the help
-// screen. It is empty in the default full read/write mode with no
-// impersonation, which needs no callout.
+// modeNote is a one-line summary of the active mode for the help screen. It is
+// empty in the default full read/write mode, which needs no callout.
 func (a App) modeNote() string {
-	mode := ""
 	switch {
 	case a.dev && a.readOnly:
-		mode = "Developer + read-only mode: nav scoped to app resources; all writes disabled"
+		return "Developer + read-only mode: nav scoped to app resources; all writes disabled"
 	case a.dev:
-		mode = "Developer mode: nav scoped to app resources; node ops disabled"
+		return "Developer mode: nav scoped to app resources; node ops disabled"
 	case a.readOnly:
-		mode = "Read-only mode: writes are disabled. Fat-fingers, your cluster is safe."
+		return "Read-only mode: writes are disabled. Fat-fingers, your cluster is safe."
 	}
-	imp := ""
-	if a.impersonate.Active() {
-		imp = "Impersonating " + a.impersonate.String()
-	}
-	return strings.Join(nonEmpty([]string{imp, mode}), " · ")
+	return ""
 }
 
 type hint struct{ key, desc string }
