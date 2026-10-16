@@ -20,7 +20,7 @@ func TestRenderConfigDecodesSecretData(t *testing.T) {
 		},
 	}
 
-	out := renderConfig(th, res, obj, 80, nil)
+	out := renderConfig(th, res, obj, 80, nil, nil)
 	if !strings.Contains(out, "Decoded Data") {
 		t.Fatalf("decoded data section missing from config view:\n%s", out)
 	}
@@ -71,7 +71,7 @@ func TestRenderConfigShowsPodUsageAndIssues(t *testing.T) {
 	}
 	usage := &k8s.PodUsage{CPUUsedMilli: 25, MemUsedBytes: 64 * 1024 * 1024}
 
-	out := renderConfig(th, res, obj, 80, usage)
+	out := renderConfig(th, res, obj, 80, usage, nil)
 	for _, want := range []string{"Usage", "25m live", "64Mi live", "cpu 100m", "mem 128Mi", "Health", "CrashLoopBackOff", "restarts", "3"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("config view missing %q:\n%s", want, out)
@@ -132,7 +132,7 @@ func TestRenderConfigShowsIngressRuleDetails(t *testing.T) {
 		},
 	}
 
-	out := renderConfig(th, res, obj, 140, nil)
+	out := renderConfig(th, res, obj, 140, nil, nil)
 	for _, want := range []string{
 		"class", "nginx",
 		"default", "fallback:8080",
@@ -194,7 +194,7 @@ func TestRenderConfigPutsStatusBeforeOverview(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			out := renderConfig(th, tt.res, tt.obj, 80, nil)
+			out := renderConfig(th, tt.res, tt.obj, 80, nil, nil)
 			statusAt := strings.Index(out, "Status")
 			overviewAt := strings.Index(out, "Overview")
 			if statusAt < 0 || overviewAt < 0 || statusAt > overviewAt {
@@ -219,7 +219,7 @@ func TestConfigViewReRendersOnResize(t *testing.T) {
 		"type": "Opaque",
 		"data": map[string]interface{}{"password": "aHVudGVyMg=="},
 	}
-	c.setObject(res, "secret/db", obj, nil)
+	c.setObject(res, "secret/db", obj, nil, nil)
 	if strings.TrimSpace(ansi.Strip(c.vp.View())) == "" {
 		t.Fatal("config view is blank after setObject")
 	}
@@ -251,7 +251,7 @@ func TestConfigViewResizePreservesScroll(t *testing.T) {
 	obj := map[string]interface{}{
 		"data": data,
 	}
-	c.setObject(k8s.ResourceInfo{Resource: "configmaps", Kind: "ConfigMap"}, "configmap/app", obj, nil)
+	c.setObject(k8s.ResourceInfo{Resource: "configmaps", Kind: "ConfigMap"}, "configmap/app", obj, nil, nil)
 	c.vp.SetYOffset(5)
 	before := c.vp.YOffset()
 	if before == 0 {
@@ -275,12 +275,77 @@ func TestRenderConfigSeparatesLongSecretKeys(t *testing.T) {
 		},
 	}
 
-	out := renderConfig(th, res, obj, 72, nil)
+	out := renderConfig(th, res, obj, 72, nil, nil)
 	plain := ansi.Strip(out)
 	if strings.Contains(plain, "POSTGRES_REPLICATION_PASSWORDreplicatorpass") {
 		t.Fatalf("long secret key was not separated from value:\n%s", out)
 	}
 	if !strings.Contains(plain, "  replicatorpass") {
 		t.Fatalf("decoded value missing expected separation:\n%s", out)
+	}
+}
+
+func TestRenderConfigShowsEvents(t *testing.T) {
+	th := PickTheme("ansi")
+	res := k8s.ResourceInfo{Resource: "pods", Kind: "Pod"}
+	obj := map[string]interface{}{
+		"metadata": map[string]interface{}{"name": "nginx", "namespace": "default"},
+	}
+	events := []k8s.ObjectEvent{
+		{Age: "2m", Type: "Warning", Reason: "BackOff", Message: "Back-off restarting failed container", Count: 5},
+		{Age: "5m", Type: "Normal", Reason: "Pulled", Message: "Successfully pulled image nginx:1.27", Count: 1},
+	}
+
+	out := ansi.Strip(renderConfig(th, res, obj, 80, nil, events))
+	if !strings.Contains(out, "Events") {
+		t.Fatalf("events section missing from config view:\n%s", out)
+	}
+	for _, want := range []string{"Warning", "BackOff \u00d75", "Back-off restarting failed container", "Normal", "Pulled"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("events section missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "Pulled \u00d71") {
+		t.Fatalf("single-occurrence event should not show a count:\n%s", out)
+	}
+	// Events come last, like kubectl describe, and stay newest first.
+	if i, j := strings.Index(out, "Events"), strings.Index(out, "Overview"); j >= 0 && i < j {
+		t.Fatalf("events section should come after Overview:\n%s", out)
+	}
+	if strings.Index(out, "BackOff") > strings.Index(out, "Pulled") {
+		t.Fatalf("events not rendered newest first:\n%s", out)
+	}
+}
+
+func TestRenderConfigOmitsEmptyEventsSection(t *testing.T) {
+	th := PickTheme("ansi")
+	res := k8s.ResourceInfo{Resource: "configmaps", Kind: "ConfigMap"}
+	obj := map[string]interface{}{"data": map[string]interface{}{"key": "value"}}
+
+	out := ansi.Strip(renderConfig(th, res, obj, 80, nil, nil))
+	if strings.Contains(out, "Events") {
+		t.Fatalf("empty events section should be omitted:\n%s", out)
+	}
+}
+
+func TestEventLinesKeepFullMessageForWrapping(t *testing.T) {
+	th := PickTheme("ansi")
+	long := strings.Repeat("failed to pull image because the registry is unreachable ", 4)
+	lines := eventLines(th, []k8s.ObjectEvent{{Age: "1m", Type: "Warning", Reason: "Failed", Message: long, Count: 1}})
+
+	if len(lines) != 1 {
+		t.Fatalf("eventLines() returned %d lines, want 1", len(lines))
+	}
+	// Not truncated to the pane width: the pager's wrap toggle needs the full text.
+	if !strings.Contains(ansi.Strip(lines[0]), long) {
+		t.Fatalf("event message was truncated:\n%s", lines[0])
+	}
+}
+
+func TestEventLinesExpandsTabs(t *testing.T) {
+	th := PickTheme("ansi")
+	lines := eventLines(th, []k8s.ObjectEvent{{Age: "1m", Type: "Normal", Reason: "Created", Message: "a\tb", Count: 1}})
+	if strings.Contains(lines[0], "\t") {
+		t.Fatalf("tab survived into the rendered event line: %q", lines[0])
 	}
 }
