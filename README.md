@@ -166,7 +166,7 @@ See [Configuration](docs/configuration.md) for the full reference.
 - A cockpit overview on launch: cluster health, node CPU and memory gauges, pod and deployment status, and recent warnings.
 - Server-rendered tables for any resource, the same columns as `kubectl get`, including CRDs.
 - lazygit-style layout: a left resource nav, `Tab` between panes, and a status bar that always shows the keys that work right now.
-- Config summaries with the object's recent events (like `kubectl describe`), raw YAML, logs, Service port-forward, edit-in-editor, shell into pods or nodes, delete, scale, restart, and CronJob trigger, all inside the TUI.
+- Config summaries, raw YAML, logs, Service port-forward, edit-in-editor, shell into pods or nodes, delete, scale, restart, and CronJob trigger, all inside the TUI.
 - ANSI colors that match your terminal in light or dark mode, with Tokyo Night as a fallback (`--theme tokyonight`).
 - A customizable sidebar menu via an optional config file (`ku config init`): add CRDs like HPAs, KEDA ScaledObjects, or OpenTelemetry collectors.
 - Plugins: bind a key to any external command with the selected row's namespace, name, resource, context and cluster, detached or in the embedded terminal.

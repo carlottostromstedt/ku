@@ -84,7 +84,7 @@ until edit mode is enabled with `Shift+E` or the command palette.
 | --- | --- |
 | Logs | `p` current / previous instance when available, `f` follow current logs, `/` filter (regex, `Enter` or `↑`/`↓` confirms), `w` (or `Ctrl+w` while filtering) wrap / truncate lines, `c` copy all, `Ctrl+l` clear, `v` select lines, `g` / `G` top / bottom, `esc` back |
 | Logs (selecting) | `↑` / `↓` (and `g` / `G`, page keys) move the cursor, `m` mark, `y` / `Enter` copy, `esc` cancel |
-| Config summary | scroll, `d` / `y` YAML, `e` edit, `t` trigger CronJob, `w` wrap long event messages, `esc` back |
+| Config summary | scroll, `d` / `y` YAML, `e` edit, `t` trigger CronJob, `esc` back |
 | Detail (YAML) | scroll, `Enter` config, `e` edit, `t` trigger CronJob, `esc` back |
 | Shell / editor | keys go to the program; `Ctrl+Shift+V` pastes in shell mode; `Ctrl+V` is passed through; `Ctrl+\` detaches (cancels an edit) |
 | Command overlay | `C`, `q`, or `esc` closes |
