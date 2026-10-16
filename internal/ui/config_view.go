@@ -15,6 +15,10 @@ import (
 
 const configKeyWidth = 14
 
+// eventReasonWidth aligns the event message column. Reasons are short CamelCase
+// tokens; a longer one is padded past, not cut.
+const eventReasonWidth = 20
+
 // configView renders a curated, read-only configuration summary for common
 // Kubernetes objects. It embeds a pager for scroll/selection/copy; the summary
 // is laid out to the pane width, so it defaults to no-wrap and is re-rendered on
@@ -27,6 +31,7 @@ type configView struct {
 	res    k8s.ResourceInfo
 	obj    map[string]interface{}
 	usage  *k8s.PodUsage
+	events []k8s.ObjectEvent
 	hasObj bool
 }
 
@@ -41,7 +46,7 @@ func (c *configView) setSize(w, h int) {
 	y, x := c.vp.YOffset(), c.vp.XOffset()
 	c.pager.setSize(w, h)
 	if c.hasObj {
-		c.SetContent(renderConfig(c.th, c.res, c.obj, c.vp.Width(), c.usage))
+		c.SetContent(renderConfig(c.th, c.res, c.obj, c.vp.Width(), c.usage, c.events))
 		c.vp.SetYOffset(y)
 		c.vp.SetXOffset(x)
 	}
@@ -51,16 +56,18 @@ func (c *configView) setMessage(title, body string) {
 	c.title = title
 	c.label = "config"
 	c.hasObj = false
+	c.events = nil
 	c.clearFilter()
 	c.SetContent(body)
 }
 
-func (c *configView) setObject(res k8s.ResourceInfo, title string, obj map[string]interface{}, usage *k8s.PodUsage) {
+func (c *configView) setObject(res k8s.ResourceInfo, title string, obj map[string]interface{}, usage *k8s.PodUsage, events []k8s.ObjectEvent) {
 	c.title = title
 	c.label = strings.ToLower(res.Kind) + " config"
 	c.res, c.obj, c.usage, c.hasObj = res, obj, usage, true
+	c.events = events
 	c.clearFilter()
-	c.SetContent(renderConfig(c.th, res, obj, c.vp.Width(), usage))
+	c.SetContent(renderConfig(c.th, res, obj, c.vp.Width(), usage, events))
 }
 
 func (c configView) View() string {
@@ -73,7 +80,7 @@ func (c configView) View() string {
 
 type configRow struct{ key, value string }
 
-func renderConfig(th Theme, res k8s.ResourceInfo, obj map[string]interface{}, width int, usage *k8s.PodUsage) string {
+func renderConfig(th Theme, res k8s.ResourceInfo, obj map[string]interface{}, width int, usage *k8s.PodUsage, events []k8s.ObjectEvent) string {
 	var lines []string
 	add := func(title string, rows []configRow) {
 		if len(rows) == 0 {
@@ -131,10 +138,58 @@ func renderConfig(th Theme, res k8s.ResourceInfo, obj map[string]interface{}, wi
 		addOverview()
 		add("Spec", genericSpecRows(obj))
 	}
+	// Events last, where kubectl describe puts them.
+	if ev := eventLines(th, events); len(ev) > 0 {
+		if len(lines) > 0 {
+			lines = append(lines, "")
+		}
+		lines = append(lines, ansi.Truncate(th.ModalTitle.Render("Events"), width, ""))
+		lines = append(lines, ev...)
+	}
 	if len(lines) == 0 {
 		return th.Dim.Render("no config fields found")
 	}
 	return strings.Join(lines, "\n")
+}
+
+// eventLines renders one line per event: age, type, reason (with an occurrence
+// count when the server aggregated repeats), then the message.
+//
+// Unlike every other section these lines are not truncated to the pane width.
+// The message is the reason you opened the view, and the viewport clips overlong
+// lines safely while the pager's `w` toggle reflows them, so truncating here
+// would destroy text the user can otherwise still read.
+func eventLines(th Theme, events []k8s.ObjectEvent) []string {
+	if len(events) == 0 {
+		return nil
+	}
+	lines := make([]string, 0, len(events))
+	for _, e := range events {
+		typeStyle := th.Dim
+		if e.Type == "Warning" {
+			typeStyle = th.Warn
+		}
+		reason := e.Reason
+		if reason == "" {
+			reason = "-"
+		}
+		if e.Count > 1 {
+			reason += fmt.Sprintf(" \u00d7%d", e.Count)
+		}
+		// Pad, never truncate: the columns line up so events scan vertically, and
+		// an unusually long reason only pushes its own message right.
+		line := "  " +
+			th.Dim.Render(fmt.Sprintf("%-4s", truncate(e.Age, 4))) + " " +
+			typeStyle.Render(fmt.Sprintf("%-8s", truncate(e.Type, 8))) + " " +
+			th.HeaderVal.Render(fmt.Sprintf("%-*s", eventReasonWidth, reason))
+		if e.Message != "" {
+			line += "  " + th.Dim.Render(e.Message)
+		}
+		// SetContent does not expand tabs (only the append path does) and a tab
+		// measures as zero width, so it would spill past the pane.
+		lines = append(lines, expandTabs(line))
+	}
+	return lines
 }
 
 func configKV(th Theme, key, value string, width int) string {
