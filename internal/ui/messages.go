@@ -55,6 +55,7 @@ type configLoadedMsg struct {
 	title    string
 	obj      map[string]interface{}
 	usage    *k8s.PodUsage
+	events   []k8s.ObjectEvent
 	err      error
 }
 
@@ -266,11 +267,20 @@ func loadConfigCmd(cl *k8s.Client, seq int, res k8s.ResourceInfo, ns, name strin
 				usage = &u
 			}
 		}
+		// Best-effort: no events (or no permission to read them) leaves the section
+		// out rather than failing the whole summary.
+		var events []k8s.ObjectEvent
+		if err == nil {
+			uid, _ := stringAt(obj, "metadata", "uid")
+			if evs, eerr := cl.ObjectEvents(ctx, res, ns, name, uid); eerr == nil {
+				events = evs
+			}
+		}
 		title := res.Resource + "/" + name
 		if ns != "" {
 			title = ns + "/" + name
 		}
-		return configLoadedMsg{client: cl, seq: seq, res: res, ns: ns, name: name, title: title, obj: obj, usage: usage, err: err}
+		return configLoadedMsg{client: cl, seq: seq, res: res, ns: ns, name: name, title: title, obj: obj, usage: usage, events: events, err: err}
 	}
 }
 

@@ -55,6 +55,15 @@ details. Workloads, Jobs, and CronJobs show status before overview fields.
 Services, Ingresses, ConfigMaps, and Secrets get purpose-built summaries;
 unknown kinds fall back to an overview plus spec summary.
 
+Every kind ends with an `Events` section: the recent events recorded against
+that object, newest first, warnings highlighted, with a `×N` count when the
+server aggregated repeats. This is the same information `kubectl describe` puts
+at the bottom, so `FailedScheduling`, `ImagePullBackOff`, `BackOff`, and
+`Unhealthy` are visible without leaving the TUI. Event messages are kept in
+full rather than truncated, so press `w` to wrap a long one. The section is
+omitted when an object has no events, and a cluster that denies event reads just
+shows no section.
+
 `d` or `y` opens the object's YAML in a scrollable view (managed fields
 stripped), with theme-aware syntax highlighting. `g` / `G` jump to top and
 bottom. Secret `data` is base64-decoded in read-only views for readability;
